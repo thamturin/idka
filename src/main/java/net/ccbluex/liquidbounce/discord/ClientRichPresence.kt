@@ -1,84 +1,133 @@
-package net.ccbluex.liquidbounce.discordrpc
+/*
+ * LiquidBounce++ Hacked Client
+ * A free open source mixin-based injection hacked client for Minecraft using Minecraft Forge.
+ * https://github.com/PlusPlusMC/LiquidBouncePlusPlus/
+ */
+package net.ccbluex.liquidbounce.discord
 
 import com.jagrosh.discordipc.IPCClient
 import com.jagrosh.discordipc.IPCListener
 import com.jagrosh.discordipc.entities.RichPresence
 import com.jagrosh.discordipc.entities.pipe.PipeStatus
 import net.ccbluex.liquidbounce.LiquidBounce
-import net.ccbluex.liquidbounce.ui.client.gui.GuiMainMenu
 import net.ccbluex.liquidbounce.utils.ClientUtils
 import net.ccbluex.liquidbounce.utils.MinecraftInstance
-import net.ccbluex.liquidbounce.utils.ServerUtils
-import net.minecraft.client.gui.GuiMultiplayer
 import org.json.JSONObject
+import java.io.IOException
 import java.time.OffsetDateTime
 import kotlin.concurrent.thread
+
+import org.lwjgl.opengl.Display
 
 class ClientRichPresence : MinecraftInstance() {
 
     var showRichPresenceValue = true
 
-    private val ipcClient = IPCClient(962156741200597032)
+    // IPC Client
+    private var ipcClient: IPCClient? = null
+
+    private var appID = 0L
+    private val assets = mutableMapOf<String, String>()
     private val timestamp = OffsetDateTime.now()
-    private var running = false
 
+    // Status of running
+    private var running: Boolean = false
 
-    fun run() {
-        ipcClient.setListener(object : IPCListener {
-            override fun onReady(client: IPCClient?) {
-                running = true
-                thread {
-                    while (running) {
-                        update()
-                        try {
-                            Thread.sleep(1000L)
-                        } catch (ignored: InterruptedException) {
+    /**
+     * Setup Discord RPC
+     */
+    fun setup() {
+        try {
+            running = true
+
+            loadConfiguration()
+
+            ipcClient = IPCClient(962156741200597032)
+            ipcClient?.setListener(object : IPCListener {
+
+                /**
+                 * Fired whenever an [IPCClient] is ready and connected to Discord.
+                 *
+                 * @param client The now ready IPCClient.
+                 */
+                override fun onReady(client: IPCClient?) {
+                    thread {
+                        while (running) {
+                            update()
+
+                            try {
+                                Thread.sleep(1000L)
+                            } catch (ignored: InterruptedException) {
+                            }
                         }
                     }
                 }
-            }
 
-            override fun onClose(client: IPCClient?, json: JSONObject?) {
-                running = false
-            }
-        })
-        try {
-            ipcClient.connect()
-        } catch (e: Exception) {
-            ClientUtils.logError("DiscordRPC failed to start")
-        } catch (e: RuntimeException) {
-            ClientUtils.logError("DiscordRPC failed to start")
+                /**
+                 * Fired whenever an [IPCClient] has closed.
+                 *
+                 * @param client The now closed IPCClient.
+                 * @param json A [JSONObject] with close data.
+                 */
+                override fun onClose(client: IPCClient?, json: JSONObject?) {
+                    running = false
+                }
+
+            })
+            ipcClient?.connect()
+        } catch (e: Throwable) {
+            ClientUtils.getLogger().error("Failed to setup Discord RPC.", e)
         }
+
     }
 
-    private fun update() {
+    /**
+     * Update rich presence
+     */
+    fun update() {
         val builder = RichPresence.Builder()
-        // Set playing client time
+
+        // Set playing time
         builder.setStartTimestamp(timestamp)
 
-        builder.setLargeImage("https://i.ibb.co/3SmN8nc/giphy.gif", "LiquidBounce Minus")
-        builder.setSmallImage("https://crosssine.github.io/file/bruh.gif", "hi")
+        // Check assets contains logo and set logo
+        if (assets.containsKey("logo"))
+            builder.setLargeImage("https://i.imgur.com/Wputa6T.png", "discord.gg/tuansocool")
 
-        if (mc.currentScreen is GuiMainMenu) {
-            builder.setDetails("MainMenu")
-        }
-        else
-        if (mc.currentScreen is GuiMultiplayer) {
-            builder.setDetails("Selecting Server")
-        }
-        else
-        if (mc.theWorld != null && mc.theWorld.isRemote) {
-            builder.setDetails("Playing : ${ServerUtils.getRemoteIp()}")
-        }
-        else
-            builder.setDetails(mc.session.username + "is best player")
+        val serverData = mc.currentServerData
 
-        builder.setState(Liquidbounce.CLIENT_NAME + " " + Liquidbounce.CLIENT_VERSION + if (Liquidbounce.CLIENT_STATUS) " Beta" else " Releases")
+        // Set display infos
+        builder.setDetails(if (Display.isActive()) (if (mc.isIntegratedServerRunning || serverData != null) "Cheating.." else "Idle..") else "AFK")
+        builder.setState("Using: " + LiquidBounce.CLIENT_VERSION)
+
+        if (mc.isIntegratedServerRunning || serverData != null) 
+            builder.setSmallImage(assets["sus"], "${if (mc.isIntegratedServerRunning || serverData == null) "Lonely.." else serverData.serverIP}")
+        else
+            builder.setSmallImage(assets["sus"], "Enabled ${LiquidBounce.moduleManager.modules.count { it.state }}/${LiquidBounce.moduleManager.modules.size}.")
+
         // Check ipc client is connected and send rpc
-        if (ipcClient.status == PipeStatus.CONNECTED) ipcClient.sendRichPresence(builder.build())
+        if (ipcClient?.status == PipeStatus.CONNECTED)
+            ipcClient?.sendRichPresence(builder.build())
     }
 
-    fun stop() {
-        if (ipcClient.status == PipeStatus.CONNECTED) ipcClient.close()
+    /**
+     * Shutdown ipc client
+     */
+    fun shutdown() {
+        if (ipcClient?.status != PipeStatus.CONNECTED) {
+            return
+        }
+        
+        try {
+            ipcClient?.close()
+        } catch (e: Throwable) {
+            ClientUtils.getLogger().error("Failed to close Discord RPC.", e)
+        }
+    }
+
+    private fun loadConfiguration() {
+        appID = 962156741200597032
+        assets["logo"] = "logo"
+        assets["sus"] = "sus"
     }
 }
