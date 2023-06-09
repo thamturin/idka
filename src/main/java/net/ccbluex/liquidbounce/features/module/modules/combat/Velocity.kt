@@ -79,7 +79,7 @@ class Velocity : Module() {
     private var jump = false
 	
 	// Grim
-	private var cancelPacket = 6
+    private var cancelPacket = 6
     private var resetPersec = 8
     private var grimTCancel = 0
     private var updates = 0
@@ -223,16 +223,16 @@ class Velocity : Module() {
             } else
                 velocityInput = false
 			
-			"grim" -> {
-				updates++
+		"grim" -> {
+			updates++
 
-				if (resetPersec > 0) {
-					if (updates >= 0 || updates >= resetPersec) {
-						updates = 0
-						if (grimTCancel > 0) grimTCancel--
+			if (resetPersec > 0) {
+				if (updates >= 0 || updates >= resetPersec) {
+				    updates = 0
+					if (grimTCancel > 0) grimTCancel--
 					}
 				}
-			}
+	   }
         }
     }
 
